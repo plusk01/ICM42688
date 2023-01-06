@@ -2,34 +2,36 @@
 #define ICM42688_H
 
 #include "Arduino.h"
-#include "Wire.h"    // I2C library
-#include "SPI.h"     // SPI library
+#include "Wire.h"
+#include "SPI.h"
 
-class ICM42688{
+#include "util/ICM_42688_ENUMERATIONS.h"
+#include "util/ICM_42688_REGISTERS.h"
+
+class ICM42688
+{
   public:
-    enum GyroRange
-    {
-      GYRO_RANGE_15_625DPS,
-      GYRO_RANGE_31_25DPS,
-      GYRO_RANGE_62_5DPS,
-      GYRO_RANGE_125DPS,
-      GYRO_RANGE_250DPS,
-      GYRO_RANGE_500DPS,
-      GYRO_RANGE_1000DPS,
-      GYRO_RANGE_2000DPS
-    };
-    enum AccelRange
-    {
-      ACCEL_RANGE_2G,
-      ACCEL_RANGE_4G,
-      ACCEL_RANGE_8G,
-      ACCEL_RANGE_16G
-    };
-    ICM42688(TwoWire &bus,uint8_t address);
-    ICM42688(SPIClass &bus,uint8_t csPin);
+
+    /**
+     * @brief      Constructor for I2C communication
+     *
+     * @param      bus      I2C bus
+     * @param[in]  address  Address of ICM 42688-p device
+     */
+    ICM42688(TwoWire &bus, uint8_t address);
+
+    /**
+     * @brief      Constructor for SPI communication
+     *
+     * @param      bus    SPI bus
+     * @param[in]  csPin  Chip Select pin
+     */
+    ICM42688(SPIClass &bus, uint8_t csPin);
+
+
     int begin();
-    int setAccelRange(AccelRange range);
-    int setGyroRange(GyroRange range);
+    int setAccelFullScale(ICM_42688_ACCEL_CONFIG0_FS_SEL_e fsSel);
+    int setGyroFullScale(ICM_42688_GYRO_CONFIG0_FS_SEL_e fsSel);
     int setFilters(bool gyroFilters, bool accFilters);
     int enableDataReadyInterrupt();
     int disableDataReadyInterrupt();
@@ -67,6 +69,14 @@ class ICM42688{
     void setAccelCalX(double bias,double scaleFactor);
     void setAccelCalY(double bias,double scaleFactor);
     void setAccelCalZ(double bias,double scaleFactor);
+  private:
+    uint8_t current_bank_ = 0;
+
+    void reset();
+    int setBank(uint8_t bank);
+
+    int writeReg(uint8_t subAddress, uint8_t* data);
+
   protected:
     // i2c
     uint8_t _address = 0;
@@ -98,8 +108,8 @@ class ICM42688{
     const double _tempScale = 333.87f;
     const double _tempOffset = 21.0f;
     // configuration
-    AccelRange _accelRange;
-    GyroRange _gyroRange;
+    ICM_42688_ACCEL_CONFIG0_FS_SEL_e accel_fssel_;
+    ICM_42688_GYRO_CONFIG0_FS_SEL_e gyro_fssel_;
     // gyro bias estimation
     size_t _numSamples = 100;
     double _gyroBD[3] = {};
@@ -118,6 +128,10 @@ class ICM42688{
     const double G = 9.807f;
     const double _d2r = 3.14159265359f/180.0f;
     const double _r2d = 180.0f/3.14159265359f;
+
+    static constexpr uint8_t WHOAMI = 0x47; ///< expected value in WHO_AM_I reg
+
+
     // ICM42688 registers
     // BANK 0
     const uint8_t ACCEL_OUT = 0x1F;
@@ -125,10 +139,10 @@ class ICM42688{
     const uint8_t TEMP_OUT = 0x1D;
 
     const uint8_t ACCEL_CONFIG0 = 0x50;
-    const uint8_t ACCEL_FS_SEL_2G = 0x80; // TODO: 0x60 in datasheet
-    const uint8_t ACCEL_FS_SEL_4G = 0x60; // TODO: 0x40 in datasheet
-    const uint8_t ACCEL_FS_SEL_8G = 0x40; // TODO: 0x20 in datasheet
-    const uint8_t ACCEL_FS_SEL_16G = 0x20; // TODO: 0x00 in datasheet
+    const uint8_t ACCEL_FS_SEL_2G = 0x60;
+    const uint8_t ACCEL_FS_SEL_4G = 0x40;
+    const uint8_t ACCEL_FS_SEL_8G = 0x20;
+    const uint8_t ACCEL_FS_SEL_16G = 0x00;
     const uint8_t ACCEL_ODR_32KHZ = 0x01;
     const uint8_t ACCEL_ODR_16KHZ = 0x02;
     const uint8_t ACCEL_ODR_8KHZ = 0x03;
@@ -180,7 +194,6 @@ class ICM42688{
     const uint8_t INTF_CONFIG1 = 0x4D;
     const uint8_t CLOCK_SEL_PLL = 0x01;
     const uint8_t PWR_MGMT0 = 0x4E;
-    const uint8_t SEN_ENABLE = 0x0F;
 
     const uint8_t WHO_AM_I = 0x75;
     const uint8_t FIFO_EN = 0x23;
@@ -215,7 +228,8 @@ class ICM42688{
     int whoAmI();
 };
 
-class ICM42688_FIFO: public ICM42688 {
+class ICM42688_FIFO: public ICM42688
+{
   public:
     using ICM42688::ICM42688;
     int enableFifo(bool accel,bool gyro,bool temp);
